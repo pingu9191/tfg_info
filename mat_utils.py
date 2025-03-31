@@ -16,10 +16,19 @@ def read_data_from_file_mat(data: np.ndarray, column_name: str) -> np.ndarray:
 def read_channel_from_file_csv(data: DataFrame, channel: str) -> np.ndarray:
     return np.array(getattr(data, channel).values)
     
-def filter_data_by_section(info: np.ndarray, lapDist: np.ndarray, section: list) -> np.ndarray:
+def filter_channel_by_section(channel: np.ndarray, lapDist: np.ndarray, section: list) -> tuple[np.ndarray, np.ndarray]:
     # Filtrar los datos de 'throttle' por la sección de la pista
-    section_data = info[(lapDist >= section[0]) & (lapDist < section[1])]
-    return section_data
+    if section[0] < 1:
+        section = [section[0]*1000000, section[1]*1000000]
+    
+    indices = (lapDist >= section[0]) & (lapDist <= section[1])
+    if(indices[-1] == False):
+        indices = indices | np.roll(indices, shift=1)
+
+    section_data = channel[indices]
+    lapdist_section = lapDist[indices]
+    
+    return section_data, lapdist_section
 
 def select_lap_from_data_mat(data: np.ndarray, throttle: np.ndarray, lap_number: int) -> np.ndarray:
     # Seleccionar los datos de la vuelta 'lap_number'
@@ -31,6 +40,7 @@ def select_lap_from_data_mat(data: np.ndarray, throttle: np.ndarray, lap_number:
     return lap_data
 
 def select_lap_from_data_csv(data: np.ndarray, channel: np.ndarray, lap_number: int) -> np.ndarray:
+    
     # Seleccionar los datos de la vuelta 'lap_number'
     laps = read_channel_from_file_csv(data, "Lap")
     lpdist = read_channel_from_file_csv(data, "SessionTime")
@@ -40,11 +50,7 @@ def select_lap_from_data_csv(data: np.ndarray, channel: np.ndarray, lap_number: 
     if len(lap_indices) == 0:
         return None
     
-    print("LapIndices[-1]", lap_indices[-1])
-    
     lap_data = channel[(lap_indices[0]-1):lap_indices[-1]+1]
-    print(lpdist[lap_indices[-1]], lpdist[lap_indices[0]-1], lpdist[lap_indices[-1]]- lpdist[lap_indices[0]-1], end=" ")
-    print_raw_data_in_minutes(lpdist[lap_indices[-1]]- lpdist[lap_indices[0]-1])
     
     lpdist = lpdist[lap_indices[0]-1:lap_indices[-1]]
     
@@ -71,15 +77,15 @@ def number_laps_stint_mat(data: np.ndarray) -> int:
 
 def number_laps_stint_csv(data: np.ndarray) -> int:
     # Contar el número de vueltas en el 'stint'
-    laps = read_data_from_file_csv(data, "Lap")
-    num_laps = np.max(laps) - np.min(laps)
+    laps = read_channel_from_file_csv(data, "Lap")
+    num_laps = np.max(laps) - np.min(laps) + 1
     return num_laps
 
 def extract_data_from_section(lapDist: np.ndarray, info: list, section: list) -> list:
     # Extraer la información de la sección de la pista
     section_data = []
     for i in range(len(info)):
-        section_data.append(filter_data_by_section(np.array(info[i]), np.array(lapDist[i]), section))
+        section_data.append(filter_channel_by_section(np.array(info[i]), np.array(lapDist[i]), section))
         
     return section_data
     
@@ -206,15 +212,15 @@ def estimate_track_sections_mat(data: np.ndarray) -> list:
 
     return promedium_sections
 
-def normalize_data_by_lapDist(data: np.ndarray, lapDist: np.ndarray, jump: int) -> tuple[np.ndarray, np.ndarray]:
+def normalize_lap_by_lapDist(channel: np.ndarray, lapDist: np.ndarray, jump: int) -> tuple[np.ndarray, np.ndarray]:
     
-    if len(data) != len(lapDist):
+    if len(channel) != len(lapDist):
         return None
     
     # Remove the last element if the lapDist is decreasing (error in the data)    
     while lapDist[-1] < lapDist[-2]:
         lapDist = lapDist[:-1]
-        data = data[:-1]
+        channel = channel[:-1]
     
     # Resample data to have the same size
     new_data = []
@@ -224,29 +230,29 @@ def normalize_data_by_lapDist(data: np.ndarray, lapDist: np.ndarray, jump: int) 
     while lapDist[0] - new_distance > jump/2:
         new_distance += jump
         
-    value = data[0]
+    value = channel[0]
     count = 1
     i=1
 
-    while i < len(data):
-        while math.fabs(lapDist[i] - new_distance) <= jump/2 and i < len(data):
-            value += data[i]
+    while i < len(channel):
+        while math.fabs(lapDist[i] - new_distance) <= jump/2 and i < len(channel):
+            value += channel[i]
             count += 1
             i += 1
-            if i == len(data):
+            if i == len(channel):
                 break
             
         new_data.append(value/count)
-        new_lapDist.append(new_distance)
+        new_lapDist.append(np.int64(new_distance))
         
-        if i == len(data):
+        if i == len(channel):
             break
         
         new_distance = new_distance + jump
         value = 0
         count = 0
         
-    return new_data, new_lapDist
+    return np.array(new_data), np.array(new_lapDist)
 
 def complete_data_missing_values(data: np.ndarray, lapDist: np.ndarray, start: int, end: int, jump: int) -> tuple[np.ndarray, np.ndarray]:
     
