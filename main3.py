@@ -7,7 +7,9 @@ import json
 import math
 from time import sleep
 
-file = "ruben/live.csv"
+file = "data/live.csv"
+track = "laguna_seca"
+JUMP = 300
 
 def main():
     
@@ -26,45 +28,59 @@ def main():
         return
     
     i = 1
+    laps = [0]
     lap = select_lap_from_data_csv(data, sessionTime, i)
     while lap is not None:
         print_raw_data_in_minutes(lap[-1] - lap[0])
+        laps.append(lap[-1] - lap[0])
         print()
         i += 1
         lap = select_lap_from_data_csv(data, sessionTime, i)
     
     pair = []
-    st_f = []
-    lasti = []
-    last = 0
     
-    for i in range(len(sessionTime)-1):
-        if lapDistPct[i] > lapDistPct[i+1] and lapDistPct[i]-lapDistPct[i+1] > 950000:
-            pair.append(sessionTime[i] - sessionTime[last-1])
-            st_f.append([lapDistPct[last-1], lapDistPct[i]])
-            last = i+1
-            
-        if lapLastLapTime[i] not in lasti:
-            lasti.append(lapLastLapTime[i])
-        
-    for i in range(len(pair)):
-        print(pair[i])
-    
-    pair = pair[1:]
-    lasti = lasti[1:]
+    lap_last_lap = read_channel_from_file_csv(data, "LapLastLapTime")
+    for i in range(1, len(lap_last_lap)):
+        if lap_last_lap[i] not in pair:
+            pair.append(lap_last_lap[i])
     
     error=0
-    print("\n\tEstimatedTime\tlapLastLapTime\tError")
+    print("\n\tlapLastLapTime\tEstimatedTime\tError")
     for i in range(len(pair)):
         print(i,".\t", end="")
         print_raw_data_in_minutes(pair[i])
         print("\t", end=" ")
-        print_raw_data_in_minutes(lasti[i])
-        print("\t"+str((pair[i]-lasti[i])))
-        error += pair[i]-lasti[i]
+        print_raw_data_in_minutes(laps[i])
+        print("\t"+str((pair[i]-laps[i])))
+        error += pair[i]-laps[i]
     
     print("\nError average: ", error/len(pair))
     
+    # open json
+    with open("tracks/"+track+".json") as json_file:
+        track_json = json.load(json_file)
+        
+        micro_sector = np.random.choice(track_json["micro_sectors"])
+        section = [micro_sector["start"]/track_json["track_length"], 
+                           micro_sector["end"]/track_json["track_length"]]
+        
+        plt.figure(figsize=(10, 5))
+        
+        for i in range(1, number_laps_stint_csv(data)-1):
+            lapDistPct = read_channel_from_file_csv(data, "LapDistPct")
+            lapDistPct = select_lap_from_data_csv(data, lapDistPct, i)
+            lapDistPct[0] = 0 # Convenio para que el primer punto sea 0
+            lap_brake = select_lap_from_data_csv(data, read_channel_from_file_csv(data, "BrakeRaw"), i)
+            lap_brake, lapDistPctnormal = normalize_lap_by_lapDist(lap_brake, lapDistPct, JUMP)
+            section_brake, section_lapdist = filter_channel_by_section(lap_brake, lapDistPctnormal, section)
+            
+            # Plot
+            plt.plot(section_lapdist, section_brake, label="Brake")
+        
+        plt.legend()
+        plt.show()
+        sleep(1)
+            
     
 if __name__ == "__main__":
     main()
