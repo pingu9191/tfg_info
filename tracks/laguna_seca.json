@@ -1,0 +1,81 @@
+{
+    "track": "Laguna Seca",
+    "track_length": 3565,
+    "micro_sectors": [
+        {
+            "sector": 1,
+            "start": 0,
+            "end": 326
+        },
+        {
+            "sector": 2,
+            "start": 326,
+            "end": 631
+        },
+        {
+            "sector": 3,
+            "start": 631,
+            "end": 894
+        },
+        {
+            "sector": 4,
+            "start": 894,
+            "end": 1166
+        },
+        {
+            "sector": 5,
+            "start": 1166,
+            "end": 1415
+        },
+        {
+            "sector": 6,
+            "start": 1415,
+            "end": 1640
+        },
+        {
+            "sector": 7,
+            "start": 1640,
+            "end": 1840
+        },
+        {
+            "sector": 8,
+            "start": 1840,
+            "end": 2063
+        },
+        {
+            "sector": 9,
+            "start": 2063,
+            "end": 2308
+        },
+        {
+            "sector": 10,
+            "start": 2308,
+            "end": 2571
+        },
+        {
+            "sector": 11,
+            "start": 2571,
+            "end": 2843
+        },
+        {
+            "sector": 12,
+            "start": 2843,
+            "end": 3069
+        },
+        {
+            "sector": 13,
+            "start": 3069,
+            "end": 3152
+        },
+        {
+            "sector": 14,
+            "start": 3152,
+            "end": 3313
+        },
+        {
+            "sector": 15,
+            "start": 3313,
+            "end": 3565
+        }
+    ]
+}
