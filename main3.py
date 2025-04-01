@@ -17,6 +17,8 @@ def main():
     
     # open csv file, delimter is ;
     data = pd.read_csv(file, delimiter=";")
+    data = data_to_numpy(data)
+
     
     # get the columns
     sessionTime = read_channel_from_file_csv(data, "SessionTime")
@@ -60,11 +62,15 @@ def main():
     with open("tracks/"+track+".json") as json_file:
         track_json = json.load(json_file)
         
-        micro_sector = np.random.choice(track_json["micro_sectors"])
+        micro_sector = track_json["micro_sectors"][1]
+        print(micro_sector)
         section = [micro_sector["start"]/track_json["track_length"], 
-                           micro_sector["end"]/track_json["track_length"]]
+                    micro_sector["end"]/track_json["track_length"]]
+        
+        print(section)
         
         plt.figure(figsize=(10, 5))
+    
         
         for i in range(1, number_laps_stint_csv(data)-1):
             lapDistPct = read_channel_from_file_csv(data, "LapDistPct")
@@ -72,10 +78,11 @@ def main():
             lapDistPct[0] = 0 # Convenio para que el primer punto sea 0
             lap_brake = select_lap_from_data_csv(data, read_channel_from_file_csv(data, "BrakeRaw"), i)
             lap_brake, lapDistPctnormal = normalize_lap_by_lapDist(lap_brake, lapDistPct, JUMP)
-            section_brake, section_lapdist = filter_channel_by_section(lap_brake, lapDistPctnormal, section)
+            # section_brake, section_lapdist = filter_channel_by_section(lap_brake, lapDistPctnormal, section)
             
             # Plot
-            plt.plot(section_lapdist, section_brake, label="Brake")
+            plt.plot(lapDistPctnormal, lap_brake, label=("Brake Lap "+str(i)))
+            break
         
         plt.legend()
         plt.show()
