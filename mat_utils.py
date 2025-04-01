@@ -69,12 +69,6 @@ def print_raw_data_in_minutes(raw: int):
     
     print("%d:%.2d:%.3d" % (minutos, segundos, miliseconds), end=" ")
 
-def number_laps_stint_mat(data: np.ndarray) -> int:
-    # Contar el número de vueltas en el 'stint'
-    laps = read_data_from_file_mat(data, "Lap")
-    num_laps = np.max(laps) - np.min(laps)
-    return num_laps
-
 def number_laps_stint_csv(data: np.ndarray) -> int:
     # Contar el número de vueltas en el 'stint'
     laps = read_channel_from_file_csv(data, "Lap")
@@ -272,3 +266,12 @@ def complete_data_missing_values(data: np.ndarray, lapDist: np.ndarray, start: i
         value += jump
             
     return data, lapDist
+
+def data_to_numpy(data: DataFrame) -> np.ndarray:
+    
+    # Convert the DataFrame to numpy array
+    data = data.to_numpy()
+    # Transpose the numpy array to switch rows and columns
+    data = data.T
+    
+    return data
