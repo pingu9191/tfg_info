@@ -1,0 +1,41 @@
+# 🏎️ Telemetry Analysis for iRacing
+
+This project aims to create a predective model able to predict lap-time during an stint of any driver. It will be able to handle live recorded telemetry from iRacing and train or use a predective model able to estimate lap time.
+
+In the future it will be analyzed if it is able to add to analyze driving styles and driving errors or inconsistences as well as interesting exporting data.
+
+## 📊 Objective
+
+- Analyze telemetry data to identify driving patterns.
+- Detect anomalies in driver performance (mistakes, overtakes, fatigue, etc.).
+- Automatically generate reports that explain where and why time is lost.
+- Monitor performance consistency and evolution during a session in real time.
+
+## ⚙️ Technologies
+
+- Python 3.x  
+- Pandas, NumPy  
+- Matplotlib / Seaborn (visualization)  
+- Scikit-learn (ML & anomaly detection)
+- TensorFlow (ANN)
+- Jupyter Notebooks  
+- Git
+
+## 📁 Project Structure
+- data: folder where csv (too large) are located
+- out: exports of the program
+- src: code
+- tracks: json files with sections of a track
+
+## 📌 Project Status
+
+🟡 Documentation
+🟡 Telemetry reading and normalization
+🔜 Predective models
+🔜 Extra feedback reports generation
+
+## 📬 Credits
+
+For questions, suggestions, or collaboration:
+
+📧 ignacio.nunnez@estudiante.uam.es
