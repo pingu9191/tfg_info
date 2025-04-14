@@ -1,7 +1,7 @@
 {
     "track": "Laguna Seca",
-    "track_length": 3565,
-    "micro_sectors": [
+    "length": 3565,
+    "sections": [
         {
             "sector": 1,
             "start": 0,
