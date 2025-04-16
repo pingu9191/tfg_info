@@ -242,7 +242,11 @@ class Track():
         self.name = name
         self.length = length
         self.number_of_sections = len(sections)
-        self.sections = sections
+        self.sections = []
+        for section in sections:
+            self.sections.append(TrackSection(section["sector"], 
+                                              section["start"]/length, 
+                                              section["end"]/length))
     
 class TrackSection():
     """

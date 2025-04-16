@@ -102,11 +102,11 @@ def filter_channel_by_section(channel: np.ndarray, lapDist: np.ndarray, section:
     """
     
     # LapDistPct is fixed-point
-    if section.end < 1:
+    if section.end <= 1:
         section.end = section.end*1000000
         section.start = section.start*1000000
     
-    indices = (lapDist >= section.end) & (lapDist <= section.start)
+    indices = (lapDist >= section.start) & (lapDist <= section.end)
     if(indices[-1] == False):
         indices = indices | np.roll(indices, shift=1)
 
@@ -164,6 +164,8 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray,
     for i in range(len(data)):
         filtered_data.append(data[i][lap_indices[0]-1:lap_indices[-1]+1])
 
+    filtered_data[utils.raw_channels.index("LapDistPct")][0] = 0 # Formalismo
+
     # Convertir la lista a un array de numpy
     filtered_data = np.array(filtered_data)
 
@@ -212,6 +214,24 @@ def get_lap_time(data: np.ndarray) -> int:
         data (np.ndarray): numpy array with the data
     Returns:
         int: lap time in microseconds
+    """
+    
+    # Obtener el tiempo de vuelta
+    lap_time = read_channel_from_data(data, "SessionTime")
+    
+    # Convertir el tiempo de vuelta a microsegundos
+    lap_time = lap_time[-1] - lap_time[0]
+    
+    return lap_time
+
+def get_section_time(data: np.ndarray) -> int:
+    """
+    Get the section time from the data
+    
+    Args:
+        data (np.ndarray): numpy array with the data
+    Returns:
+        int: section time in microseconds
     """
     
     # Obtener el tiempo de vuelta
@@ -293,13 +313,15 @@ def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
         """
         
         lapDist = read_channel_from_data(data, "LapDistPct")
-        lapDist[0] = 0 # Formalidad
+        
         new_data = []
         for i in range(len(data)):
             if (utils.raw_channels[i] not in utils.raw_model_channels):
                 continue
             ret, x = normalize_channel_lap_by_lapDist(data[i], lapDist, jump)
             new_data.append(ret)
+
+        new_data[utils.raw_model_channels.index("LapDistPct")] = x
 
         # Convertir la lista a un array de numpy
         data = np.array(new_data)
