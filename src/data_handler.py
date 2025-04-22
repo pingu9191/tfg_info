@@ -299,34 +299,59 @@ def number_laps_stint_csv(data: np.ndarray) -> int:
     num_laps = np.max(laps) - np.min(laps) + 1
     return int(num_laps)
 
+import numpy as np
+import pandas as pd
+
 def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
-        """
-        Normalize the data by lap distance, using LapDistPct channel.
-        Normalize means to average the data in a window of jump meters in order
-        to make every lap have the same number of samples.
+    """
+    Normaliza todos los canales de data agrupando por tramos de 'jump' metros en LapDistPct.
+    Vectorizado con Pandas para mejor rendimiento.
+    
+    Args:
+        data (np.ndarray): array de forma (n_channels, n_samples)
+        jump (int): salto de metros para agrupar (recomendado: 150-500)
+    
+    Returns:
+        np.ndarray: array normalizado, de forma (n_channels, n_bins)
+    """
+    # Índice del canal de LapDistPct
+    lap_index = utils.raw_channels.index("LapDistPct")
+    lapDist = data[lap_index]
 
-        Args:
-            data (np.ndarray): numpy array with the data
-            jump (int): jump in meters (A value between 150 and 500 is recommended)
-        Returns:
-            np.ndarray: numpy array with the normalized data
-        """
-        
-        lapDist = read_channel_from_data(data, "LapDistPct")
-        
-        new_data = []
-        for i in range(len(data)):
-            if (utils.raw_channels[i] not in utils.raw_model_channels):
-                continue
-            ret, x = normalize_channel_lap_by_lapDist(data[i], lapDist, jump)
-            new_data.append(ret)
+    # Calcular el bin al que pertenece cada muestra
+    bins = np.floor(lapDist / jump).astype(int)
+    unique_bins = np.unique(bins)
+    num_bins = len(unique_bins)
 
-        new_data[utils.raw_model_channels.index("LapDistPct")] = x
+    # Inicializar resultado
+    normalized_data = []
 
-        # Convertir la lista a un array de numpy
-        data = np.array(new_data)
-        
-        return data
+    # Normalizamos solo los canales relevantes
+    for channel_name in utils.raw_model_channels:
+        if channel_name not in utils.raw_channels:
+            continue
+        channel_index = utils.raw_channels.index(channel_name)
+        channel = data[channel_index]
+
+        # Agrupar por bin y hacer la media manualmente
+        averages = np.zeros(num_bins)
+        for i, b in enumerate(unique_bins):
+            mask = bins == b
+            if np.any(mask):
+                averages[i] = np.mean(channel[mask])
+            else:
+                averages[i] = 0  # O np.nan si prefieres
+
+        normalized_data.append(averages)
+
+    # Generar LapDistPct centrado en cada bin
+    lapDist_center = unique_bins * jump + jump // 2
+    lap_index_in_model = utils.raw_model_channels.index("LapDistPct")
+    normalized_data.insert(lap_index_in_model, lapDist_center)
+
+    # Convertir a array numpy (cada fila un canal)
+    return np.array(normalized_data)
+
     
 def normalize_channel_lap_by_lapDist(channel: np.ndarray, lapDist: np.ndarray, jump: int) -> tuple[np.ndarray, np.ndarray]:
     """

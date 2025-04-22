@@ -36,9 +36,8 @@ def main():
         lap = normalize_data_by_lapDistPct(lap, JUMP)
         print("Size ", len(lap[0]))
         if t == LapType.VALID_LAP or t == LapType.INCIDENT_LAP:
-            section_data = filter_data_by_section(lap, section)
-            plt.plot(read_channel_from_data(section_data, "LapDistPct"),
-                     read_channel_from_data(section_data, "ThrottleRaw"), label="Lap "+str(i))
+            plt.plot(read_channel_from_data(lap, "LapDistPct"),
+                     read_channel_from_data(lap, "BrakeRaw"), label="Lap "+str(i))
 
     plt.title("Throttle Section "+section.name)
     plt.xlabel("Throttle")
