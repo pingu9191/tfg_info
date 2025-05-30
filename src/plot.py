@@ -10,10 +10,10 @@ import math
 from time import sleep
 from utils import Track, LapType
 
-file_path = "tfg_info/data/live.csv"
-track_path = "tfg_info/tracks/laguna_seca.json"
-output_path = "tfg_info/out/"
-JUMP = 275
+file_path = "data/01JWDMB2XX155SJ9S3CBG0Z7D4.csv"
+track_path = "tracks/tsukuba.json"
+output_path = "out/"
+JUMP = 500
 
 def main():
 
@@ -25,14 +25,21 @@ def main():
         track = Track(track_data["track"], track_data["length"], track_data["sections"])
 
     plt.figure(figsize=(10, 5))
-    section = 9
+    section = 0
     section = track.sections[section]
 
+    print("Stint laps: ", number_laps_stint_csv(data))
     for i in range(number_laps_stint_csv(data)):
+        i = 4
         lap, t = select_lap_from_data(data, i)
         print("Lap ",i,": ", end=" ")
         print_raw_data_in_minutes(get_lap_time(lap))
         print(t, end=" ")
+        
+        if (t not in [LapType.VALID_LAP, LapType.INCIDENT_LAP]):
+            print("Skipping lap due to type: ", t)
+            continue
+        
         lap = normalize_data_by_lapDistPct(lap, JUMP)
         print("Size ", len(lap[0]))
         if t == LapType.VALID_LAP or t == LapType.INCIDENT_LAP:

@@ -27,7 +27,7 @@ def read_csv(file: str) -> np.ndarray:
     Returns:
         data (np.ndarray): numpy array with the data
     """
-    data = pd.read_csv(file, delimiter=";")
+    data = pd.read_csv(file, delimiter=",")
 
     # Convert the DataFrame to numpy array
     data = data.to_numpy()
@@ -61,8 +61,8 @@ def read_channel_from_data(data: np.ndarray, channel: str) -> np.ndarray:
     """
     if len(data) == len(utils.raw_channels):
         return data[utils.raw_channels.index(channel)]
-    if len(data) == len(utils.raw_model_channels):
-        return data[utils.raw_model_channels.index(channel)]
+    if len(data) == len(utils.model_channels):
+        return data[utils.model_channels.index(channel)]
     
     return None
 
@@ -154,7 +154,6 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray,
     if (len(lap_indices) == 0):
         return None, LapType.INCOMPLETE_LAP
 
-    # Formalismos de primera vuelta
     while len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
         lap_indices = lap_indices[:-1]
     if lap_indices[0] == 0:
@@ -165,6 +164,17 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray,
         filtered_data.append(data[i][lap_indices[0]-1:lap_indices[-1]+1])
 
     filtered_data[utils.raw_channels.index("LapDistPct")][0] = 0 # Formalismo
+    
+    # Eliminar lapDist negativos
+    if filtered_data[utils.raw_channels.index("LapDistPct")][1] < 0:
+        filtered_data[utils.raw_channels.index("LapDistPct")][1] = filtered_data[utils.raw_channels.index("LapDistPct")][2] / 2
+        
+    # Borrar
+    menor = 0
+    for i in range (len(filtered_data[utils.raw_channels.index("LapDistPct")])-1):
+        if filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i] > menor and filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i] != 0:
+            menor = filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i]
+    print("Menor distancia entre puntos: ", menor)
 
     # Convertir la lista a un array de numpy
     filtered_data = np.array(filtered_data)
@@ -188,11 +198,11 @@ def verify_lapType(data: np.ndarray) -> LapType:
 
     # Verificar si la vuelta es incompleta
     lapDist = read_channel_from_data(data, "LapDistPct")
-    if(lapDist[-1] < 999500):
+    if(lapDist[-1] < 0.99500):
         return LapType.INCOMPLETE_LAP
 
     surface = read_channel_from_data(data, "PlayerTrackSurface")
-    if (1 in surface):
+    if ((1 in surface) or (-1 in surface)): # -1 offworld, 1 pit, 3 track
         if surface[0] == 3:
             return LapType.INLAP_LAP
         else:
@@ -220,7 +230,7 @@ def get_lap_time(data: np.ndarray) -> int:
     lap_time = read_channel_from_data(data, "SessionTime")
     
     # Convertir el tiempo de vuelta a microsegundos
-    lap_time = lap_time[-1] - lap_time[0]
+    lap_time = lap_time[-1]*1000000 - lap_time[0]*1000000
     
     return lap_time
 
@@ -314,6 +324,8 @@ def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
     Returns:
         np.ndarray: array normalizado, de forma (n_channels, n_bins)
     """
+    jump = jump / 1000000
+    
     # Índice del canal de LapDistPct
     lap_index = utils.raw_channels.index("LapDistPct")
     lapDist = data[lap_index]
@@ -327,8 +339,8 @@ def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
     normalized_data = []
 
     # Normalizamos solo los canales relevantes
-    for channel_name in utils.raw_model_channels:
-        if channel_name not in utils.raw_channels:
+    for channel_name in utils.raw_channels:
+        if channel_name not in utils.model_channels:
             continue
         channel_index = utils.raw_channels.index(channel_name)
         channel = data[channel_index]
@@ -340,14 +352,14 @@ def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
             if np.any(mask):
                 averages[i] = np.mean(channel[mask])
             else:
-                averages[i] = 0  # O np.nan si prefieres
+                averages[i] = 0
 
         normalized_data.append(averages)
 
     # Generar LapDistPct centrado en cada bin
     lapDist_center = unique_bins * jump + jump // 2
-    lap_index_in_model = utils.raw_model_channels.index("LapDistPct")
-    normalized_data.insert(lap_index_in_model, lapDist_center)
+    lap_index_in_model = utils.model_channels.index("LapDistPct")
+    normalized_data[lap_index_in_model] = lapDist_center
 
     # Convertir a array numpy (cada fila un canal)
     return np.array(normalized_data)

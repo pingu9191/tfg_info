@@ -104,7 +104,7 @@ raw_channels = ["SessionTime",
 "RFshockDefl",
 "RFshockVel"]
 
-raw_model_channels = [#"SessionTime",
+model_channels = [#"SessionTime",
 #"SessionTick",
 #"SessionNum",
 #"SessionState",

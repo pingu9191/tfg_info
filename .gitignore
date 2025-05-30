@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Vscode folder
+.vscode/
+
+# Every data file (private)
+data/
+!data/downloader.py
+
 # temp files
 kk.py
 
