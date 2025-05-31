@@ -8,6 +8,7 @@ from pandas import DataFrame
 from datetime import timedelta
 from utils import LapType, TrackSection
 import utils
+from collections import deque
 
 def read_data_from_file_mat(data: np.ndarray, column_name: str) -> np.ndarray:
     """
@@ -27,7 +28,7 @@ def read_csv(file: str) -> np.ndarray:
     Returns:
         data (np.ndarray): numpy array with the data
     """
-    data = pd.read_csv(file, delimiter=",")
+    data = pd.read_csv(file, delimiter=",", dtype={"SessionState": str})
 
     # Convert the DataFrame to numpy array
     data = data.to_numpy()
@@ -134,17 +135,15 @@ def select_lap_from_data_mat(data: np.ndarray, throttle: np.ndarray, lap_number:
     
     return lap_data
 
-def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray, LapType]:
+def select_lap_from_data(data: np.ndarray, lap_number: int) -> list[tuple[np.ndarray, LapType]]:
     """
     Filters the data from a lap and returns the data of the lap
     
     Args:
         data (np.ndarray): numpy array with the data
-        channel (np.ndarray): numpy array with the channel data
         lap_number (int): lap number to select
     Returns:
-        np.ndarray: numpy array with the data of the lap
-        int: 1 valid lap, 0 incomplete
+        list[tuple[np.ndarray, LapType]]: list with the data of the lap and the lap type
     """
     
     # Seleccionar los datos de la vuelta 'lap_number'
@@ -153,13 +152,42 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray,
 
     if (len(lap_indices) == 0):
         return None, LapType.INCOMPLETE_LAP
+    
+    ret = []
 
-    while len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
-        lap_indices = lap_indices[:-1]
+    if len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
+        lap_indices2 = deque([])
+        while len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
+            lap_indices2.appendleft(lap_indices[-1])
+            lap_indices = lap_indices[:-1]
+        ret.extend(select_lap_from_data_aux(data, list(lap_indices2)))
+    
+    ret.extend(select_lap_from_data_aux(data, lap_indices))
+    
+    return ret
+    
+def select_lap_from_data_aux(data: np.ndarray, lap_indices: np.ndarray) -> list[tuple[np.ndarray, LapType]]:
+    """
+    Recursive auxiliary function to select the lap from the data.
+    
+    Args:
+        data (np.ndarray): numpy array with the data
+        lap_number (int): lap number to select
+    Returns:
+        list[tuple[np.ndarray, LapType]]: list with the data of the lap and the lap type
+    """
+    
+    ret = []
+    if len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
+        lap_indices2 = deque([])
+        while len(lap_indices) != lap_indices[-1] - lap_indices[0] + 1:
+            lap_indices2.appendleft(lap_indices[-1])
+            lap_indices = lap_indices[:-1]
+        ret.extend(select_lap_from_data_aux(data, list(lap_indices2)))
+        
+    filtered_data = []
     if lap_indices[0] == 0:
         lap_indices = lap_indices[1:]
-
-    filtered_data = []
     for i in range(len(data)):
         filtered_data.append(data[i][lap_indices[0]-1:lap_indices[-1]+1])
 
@@ -169,19 +197,21 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> tuple[np.ndarray,
     if filtered_data[utils.raw_channels.index("LapDistPct")][1] < 0:
         filtered_data[utils.raw_channels.index("LapDistPct")][1] = filtered_data[utils.raw_channels.index("LapDistPct")][2] / 2
         
-    # Borrar
+    """# Borrar
     menor = 0
     for i in range (len(filtered_data[utils.raw_channels.index("LapDistPct")])-1):
         if filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i] > menor and filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i] != 0:
             menor = filtered_data[utils.raw_channels.index("LapDistPct")][i+1] - filtered_data[utils.raw_channels.index("LapDistPct")][i]
-    print("Menor distancia entre puntos: ", menor)
+    print("Menor distancia entre puntos: ", menor)"""
 
     # Convertir la lista a un array de numpy
     filtered_data = np.array(filtered_data)
 
     lapType = verify_lapType(filtered_data)
 
-    return filtered_data, lapType
+    ret.append((filtered_data, lapType))
+
+    return ret
     
 def verify_lapType(data: np.ndarray) -> LapType:
     """
