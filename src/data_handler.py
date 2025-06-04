@@ -103,9 +103,9 @@ def filter_channel_by_section(channel: np.ndarray, lapDist: np.ndarray, section:
     """
     
     # LapDistPct is fixed-point
-    if section.end <= 1:
+    """if section.end <= 1:
         section.end = section.end*1000000
-        section.start = section.start*1000000
+        section.start = section.start*1000000"""
     
     indices = (lapDist >= section.start) & (lapDist <= section.end)
     if(indices[-1] == False):
@@ -151,7 +151,7 @@ def select_lap_from_data(data: np.ndarray, lap_number: int) -> list[tuple[np.nda
     lap_indices = np.where(laps == lap_number)[0]
 
     if (len(lap_indices) == 0):
-        return None, LapType.INCOMPLETE_LAP
+        return None
     
     ret = []
 
@@ -188,6 +188,10 @@ def select_lap_from_data_aux(data: np.ndarray, lap_indices: np.ndarray) -> list[
     filtered_data = []
     if lap_indices[0] == 0:
         lap_indices = lap_indices[1:]
+    
+    while(data[utils.raw_channels.index("LapDistPct")][lap_indices[-1]] > 1):
+        lap_indices = lap_indices[:-1]    
+    
     for i in range(len(data)):
         filtered_data.append(data[i][lap_indices[0]-1:lap_indices[-1]+1])
 
@@ -336,11 +340,11 @@ def number_laps_stint_csv(data: np.ndarray) -> int:
     """
     # Contar el número de vueltas en el 'stint'
     laps = read_channel_from_data(data, "Lap")
+    if laps is None:
+        return None
+    
     num_laps = np.max(laps) - np.min(laps) + 1
     return int(num_laps)
-
-import numpy as np
-import pandas as pd
 
 def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
     """

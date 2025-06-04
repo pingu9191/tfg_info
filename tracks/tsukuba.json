@@ -5,41 +5,51 @@
         {
             "sector": 1,
             "start": 0,
-            "end": 223
+            "end": 115
         },
         {
             "sector": 2,
-            "start": 223,
-            "end": 325
+            "start": 115,
+            "end": 393
         },
         {
             "sector": 3,
-            "start": 325,
-            "end": 595
+            "start": 393,
+            "end": 524
         },
         {
             "sector": 4,
-            "start": 595,
+            "start": 524,
             "end": 701
         },
         {
             "sector": 5,
             "start": 701,
-            "end": 1187
+            "end": 760
         },
         {
             "sector": 6,
-            "start": 1187,
-            "end": 1288
+            "start": 760,
+            "end": 930
         },
         {
             "sector": 7,
-            "start": 1288,
-            "end": 1756
+            "start": 930,
+            "end": 1105
         },
         {
             "sector": 8,
-            "start": 1756,
+            "start": 1105,
+            "end": 1354
+        },
+        {
+            "sector": 9,
+            "start": 1354,
+            "end": 1710
+        },
+        {
+            "sector": 10,
+            "start": 1710,
             "end": 2093
         }
     ]

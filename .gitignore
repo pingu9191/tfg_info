@@ -7,8 +7,8 @@ __pycache__/
 .vscode/
 
 # Every data file (private)
-data/
 !data/downloader.py
+data/
 
 # temp files
 kk.py
