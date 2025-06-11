@@ -1,6 +1,6 @@
 import sys
 import os
-import math
+import random
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' # Suppress TensorFlow warnings
 from src.data_handler import *
@@ -8,17 +8,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import json
-import random
 from data.downloader import downloader
 from model import MyModel
 from utils import Track, LapType
 from sklearn.model_selection import train_test_split
+import utils
 
 file_path = "data/index.txt"
 track_path = "tracks/tsukuba.json"
 output_path = "out/"
 JUMP = 500
-BATCH_SIZE = 32
+BATCH_SIZE = 64
+EPOCHS = 30
 
 def main():
     
@@ -84,66 +85,22 @@ def main():
         batchs_scalar_test.append(X_scalar_test)
         batchs_label.append(y_train)
         batchs_label_test.append(y_test)
-        model = MyModel(len(X_series_train[0]), len(X_series_train[0][0]), f"{output_path}/models/model_section_{track.sections[k].name}.keras")
+        model = MyModel(len(X_series_train[0]), len(X_series_train[0][0]))
         models.append(model)                            
         k += 1
     
-    values = []
-    # predict models
+    print("Datos cargados y modelos preparados.")
     for model, i in zip(models, range(len(models))):
-        print(f"Evaluando modelo para la sección {track.sections[i].name}...")
-        values.append(model.predict(batchs_series_test[i]))
-        print("Medias", np.mean(values[-1]), np.std(values[-1]))
+        print(f"Entrenando modelo para la sección {track.sections[i].name}...")
+        model.train_model(batchs_series[i][:300], batchs_scalar[i][:300], batchs_label[i][:300], batch=BATCH_SIZE, epochs=EPOCHS)
+    print("Modelos entrenados.")
+    
+    # Save models
+    for model, i in zip(models, range(len(models))):
+        model.model.save(f"{output_path}/models/model_section_{track.sections[i].name}.keras")
+        print(f"Modelo para la sección {track.sections[i].name} guardado.")
         
-    plt.figure(figsize=(10, 5))
-    numeros = list(range(len(values[0])))
-    permutacion = numeros
-    for lap in permutacion[:10]:
-        for i in range(len(values)):
-            print_raw_data_in_minutes(desnormalize_data(batchs_label_test[i][lap], minmax_label[i][0]
-                                         , minmax_label[i][1], minmax_label[i][2]))
-        print("")
-    print("")
-    for lap in permutacion[:10]:
-        for i in range(len(values)):
-            print_raw_data_in_minutes(desnormalize_data(values[i][lap], minmax_label[i][0]
-                                         , minmax_label[i][1], minmax_label[i][2]))
-        print("")
-    
-    mean = []
-    for lap in range(math.floor(len(values[i])*0.1)):
-        ploteo = []
-        mean.append([])
-        for i in range(len(values)):
-            tt = desnormalize_data(values[i][lap], minmax_label[i][0]
-                                             , minmax_label[i][1], minmax_label[i][2]) - desnormalize_data(
-                                            batchs_label_test[i][lap], minmax_label[i][0]
-                                             , minmax_label[i][1], minmax_label[i][2])
-            tt = math.fabs(tt)
-            ploteo.append(tt)
-            mean[lap].append(tt)	
-        plt.plot(range(len(values)), ploteo, label=f"Lap {lap+1}")
-    
-    for i in range(len(track.sections)):
-        print("Media error con media: ", np.mean(np.fabs(batchs_label_test[i] - np.mean(batchs_label_test[i]))))
-        print("Media error con modelo: ", np.mean(np.fabs(batchs_label_test[i] - values[i])))
-        print("Medias", np.mean(values[i]), np.std(values[i]))
-        print(np.std(batchs_label[i]))
-    
-    values = np.array(mean) 
-    values = values.T
-    mean = np.mean(values, axis=1)
-    plt.plot(range(len(track.sections)), mean, label="Mean", color='black', linewidth=2)                                            
-
-    plt.title("Prediccion de tiempo por sector ")
-    plt.xlabel("Sector")
-    plt.ylabel("Absolute error with real lap time (s)")
-    #plt.legend()
-    plt.grid()
-    plt.savefig(output_path+"matplot/output_plot.png")
-
     print("Fin del programa")
-
     return
 
 if __name__ == "__main__":

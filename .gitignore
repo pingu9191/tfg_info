@@ -11,7 +11,10 @@ __pycache__/
 data/
 
 # temp files
-kk.py
+kk*
+
+# Everything in the out/
+out/
 
 # C extensions
 *.so

@@ -1,5 +1,6 @@
 import sys
 import os
+import signal
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' # Suppress TensorFlow warnings
 from src.data_handler import *
@@ -16,6 +17,11 @@ track_path = "tracks/tsukuba.json"
 output_path = "out/"
 JUMP = 500
 BATCH_SIZE = 100000
+interrumpido = False
+
+def handler(signum, frame):
+    global interrumpido
+    interrumpido = True
 
 def main():
 
@@ -24,6 +30,8 @@ def main():
         track_data = json.load(json_file)
         track = Track(track_data["track"], track_data["length"]
                       , track_data["label_max"], track_data["sections"])
+
+    signal.signal(signal.SIGINT, handler)  # Reset signal handler to default
 
     counter_valid_laps = 0
     counter_not_full_lap = 0
@@ -45,7 +53,7 @@ def main():
     file_line = 0
     file = downloader(file_line)
     
-    while file is not False:
+    while (file is not False) and (interrumpido == False):
         
         file_path = "data/" + file
     
@@ -68,7 +76,6 @@ def main():
                 counter_laps += 1
                 #print("Lap ",i,".",j,": ", end=" ")
                 j += 1
-                #print_raw_data_in_minutes(get_lap_time(lap))
                 #print(t, end=" ")
 
                 if (t not in [LapType.VALID_LAP, LapType.INCIDENT_LAP]):
@@ -93,6 +100,7 @@ def main():
                         batchs_label.append([])
                         lenght_batch.append(len(data_section[0]))
 
+                print_raw_data_in_minutes(get_lap_time(lap))
                 time = 0
                 index = 0
                 lap_sections = []
@@ -132,13 +140,13 @@ def main():
                         break
                     
                     # Normalizar valores
-                    data_section = normalize_data(data_section)
+                    data_section = normalize_channel(data_section)
                     lap_sections.append(data_section)
                     
-                    scalar_values.append(normalize_time(time, track.label_max))
+                    scalar_values.append(time)
                     
                     time_nor = get_section_time(lap) - time
-                    label_values.append(normalize_time(time_nor, track.label_max))
+                    label_values.append(time_nor)
                     
                     time += get_section_time(data_section_nor)
                     
@@ -165,7 +173,10 @@ def main():
     for model in models:
         #model.model.save(f"{output_path}/models/model_section_{i+1}.keras")
         print(f"Model for section {track.sections[i].name} saved.")
-        np.savez_compressed(f"out/datasets/dataset{i}.npz", X_series=np.array(batchs_series[i]), X_scalar=np.array(batchs_scalar[i]), y=np.array(batchs_label[i]))
+        np.savez_compressed(f"out/datasets/dataset{i}.npz", 
+                            X_series=np.array(batchs_series[i]), 
+                            X_scalar=np.array(batchs_scalar[i]), 
+                            y=np.array(batchs_label[i]))
         i += 1
     
     print("Total laps processed: ", counter_laps)

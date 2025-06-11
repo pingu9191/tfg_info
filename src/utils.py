@@ -1,4 +1,6 @@
 from enum import Enum
+import numpy as np
+import hashlib
 
 raw_channels = ["SessionTime",
 "SessionTick",
@@ -208,6 +210,216 @@ model_channels = [#"SessionTime",
 "RFshockDefl",
 "RFshockVel"]
 
+new_model_channels = [#"SessionTime",
+#"SessionTick",
+#"SessionNum",
+#"SessionState",
+#"SessionFlags",
+#"DriverMarker",
+#"PushToPass",
+#"IsReplayPlaying",
+#"PlayerTrackSurface",
+#"PlayerCarTeamIncidentCount",
+#"PlayerCarWeightPenalty",
+#"PlayerCarPowerAdjust",
+#"PlayerTireCompound",
+#"PaceMode",
+"SteeringWheelAngle",
+"Throttle",
+"Brake",
+"Clutch",
+"Gear",
+"RPM",
+#"Lap",
+#"LapDistPct",
+#"LapLastLapTime",
+"Speed",
+"Yaw",
+"YawNorth",
+"Pitch",
+"Roll",
+#"TrackTempCrew",
+#"AirTemp",
+#"TrackWetness",
+#"Skies",
+#"AirDensity",
+#"AirPressure",
+"WindVel",
+"WindDir",
+#"RelativeHumidity",
+#"FogLevel",
+#"Precipitation",
+#"DCLapStatus",
+#"DCDriversSoFar",
+"ThrottleRaw",
+"BrakeRaw",
+"ClutchRaw",
+#"HandbrakeRaw",
+#"BrakeABSactive",
+#"RollRate_ST[0]",
+#"RollRate_ST[1]",
+#"RollRate_ST[2]",
+#"RollRate_ST[3]",
+#"RollRate_ST[4]",
+#"RollRate_ST[5]",
+"YawRate",
+"PitchRate",
+"RollRate",
+"VertAccel",
+"LatAccel",
+"LongAccel",
+#"dcStarter",
+#"dcPitSpeedLimiterToggle",
+#"dcTearOffVisor",
+"dcBrakeBias",
+#"RFbrakeLinePress",
+#"RFcoldPressure",
+#"RFtempCL",
+#"RFtempCM",
+#"RFtempCR",
+#"RFwearL",
+#"RFwearM",
+#"RFwearR"
+#"LFbrakeLinePress",
+#"LFcoldPressure",
+#"LFtempCL",
+#"LFtempCM",
+#"LFtempCR",
+#"LFwearL",
+#"LFwearM",
+#"LFwearR",
+#"FuelLevel",
+#"RRbrakeLinePress",
+#"RRcoldPressure",
+#"RRtempCL",
+#"RRtempCM",
+#"RRtempCR",
+#"RRwearL",
+#"RRwearM",
+#"RRwearR",
+#"LRbrakeLinePress",
+#"LRcoldPressure",
+#"LRtempCL",
+#"LRtempCM",
+#"LRtempCR",
+#"LRwearL",
+#"LRwearM",
+#"LRwearR",
+#"LRshockDefl",
+#"LRshockVel",
+#"RRshockDefl",
+#"RRshockVel",
+#"LFshockDefl",
+#"LFshockVel",
+#"RFshockDefl",
+#"RFshockVel"
+]
+
+model_channels_limits = {#"SessionTime",
+#"SessionTick",
+#"SessionNum",
+#"SessionState",
+#"SessionFlags",
+#"DriverMarker",
+"PushToPass": [0, 1],
+#"IsReplayPlaying",
+"PlayerTrackSurface": [0, 3], #
+#"PlayerCarTeamIncidentCount",
+#"PlayerCarWeightPenalty",
+"PlayerCarPowerAdjust": [0, 1], #
+"PlayerTireCompound": [0, 4], #
+"PaceMode": [0, 4], #
+"SteeringWheelAngle": [-4.5, 4.5],
+"Throttle": [0, 1],
+"Brake": [0, 1],
+"Clutch": [0, 1],
+"Gear": [0, 7],
+"RPM": [1000, 13000],
+#"Lap",
+"LapDistPct": [0, 1],
+#"LapLastLapTime",
+"Speed": [0, 100], # m/s
+"Yaw": [-5, 5], #
+"YawNorth": [0, 8], #
+"Pitch": [-1, 1],
+"Roll": [-1, 1],
+"TrackTempCrew": [0, 50], # Celsius
+"AirTemp": [0, 50], # Celsius
+"TrackWetness": [0, 1], # 0 = dry, 1 = wet
+"Skies": [0, 4],
+"AirDensity": [0, 2],
+"AirPressure": [100000, 105000], #
+"WindVel": [0, 10],
+"WindDir": [0, 6.3], # rad
+"RelativeHumidity": [0, 1], #
+"FogLevel": [0, 1],
+"Precipitation": [0, 1],
+#"DCLapStatus",
+#"DCDriversSoFar",
+"ThrottleRaw": [0, 1],
+"BrakeRaw": [0, 1],
+"ClutchRaw": [0, 1],
+"HandbrakeRaw": [0, 1],
+"BrakeABSactive": [0, 1], #
+"RollRate_ST[0]": [-3, 3],
+"RollRate_ST[1]": [-3, 3],
+"RollRate_ST[2]": [-3, 3],
+"RollRate_ST[3]": [-3, 3],
+"RollRate_ST[4]": [-3, 3],
+"RollRate_ST[5]": [-3, 3],
+"YawRate": [-3, 3],
+"PitchRate": [-3, 3],
+"RollRate": [-3, 3],
+"VertAccel": [-1, 40],
+"LatAccel": [-50, 50],
+"LongAccel": [-60, 60],
+#"dcStarter",
+#"dcPitSpeedLimiterToggle",
+#"dcTearOffVisor",
+"dcBrakeBias": [45, 65],
+"RFbrakeLinePress": [0, 1],
+"RFcoldPressure": [100, 150], #
+"RFtempCL": [50, 150],
+"RFtempCM": [50, 150],
+"RFtempCR": [50, 150],
+"RFwearL": [0, 1],
+"RFwearM": [0, 1],
+"RFwearR": [0, 1],
+"LFbrakeLinePress": [0, 1],
+"LFcoldPressure": [100, 150], #
+"LFtempCL": [50, 150],
+"LFtempCM": [50, 150],
+"LFtempCR": [50, 150],
+"LFwearL": [0, 1],
+"LFwearM": [0, 1],
+"LFwearR": [0, 1],
+"FuelLevel": [0, 50], # l of fuel
+"RRbrakeLinePress": [0, 1],
+"RRcoldPressure": [100, 150], #
+"RRtempCL": [50, 150],
+"RRtempCM": [50, 150],
+"RRtempCR": [50, 150],
+"RRwearL": [0, 1],
+"RRwearM": [0, 1],
+"RRwearR": [0, 1],
+"LRbrakeLinePress": [0, 1],
+"LRcoldPressure": [100, 150],
+"LRtempCL": [50, 150],
+"LRtempCM": [50, 150],
+"LRtempCR": [50, 150],
+"LRwearL": [0, 1],
+"LRwearM": [0, 1],
+"LRwearR": [0, 1],
+"LRshockDefl": [-1, 1],
+"LRshockVel": [-1, 1],
+"RRshockDefl": [-1, 1],
+"RRshockVel": [-1, 1],
+"LFshockDefl": [-1, 1],
+"LFshockVel": [-1, 1],
+"RFshockDefl": [-1, 1],
+"RFshockVel": [-1, 1]
+}
+
 class LapType(Enum):
     """
     Enum for lap types.
@@ -237,11 +449,13 @@ class Track():
     - length: Length of the track in meters.
     - number_of_sections: Number of sections in the track.
     - sections: List of track sections.
+    - label_max: Maximum label value for the track.
     """
-    def __init__(self, name, length, sections):
+    def __init__(self, name, length, label_max, sections):
         self.name = name
         self.length = length
         self.number_of_sections = len(sections)
+        self.label_max = label_max * 1000000
         self.sections = []
         for section in sections:
             self.sections.append(TrackSection(section["sector"], 
@@ -262,4 +476,12 @@ class TrackSection():
         self.length = end - start
         self.start = start
         self.end = end
-    
+
+def hash_variable(var):
+    if isinstance(var, np.ndarray):
+        # Convierte el array a bytes para hashearlo
+        return hashlib.sha256(var.tobytes()).hexdigest()
+    else:
+        import json
+        var_str = json.dumps(var, sort_keys=True, default=str)  # default=str como último recurso
+        return hashlib.sha256(var_str.encode()).hexdigest()

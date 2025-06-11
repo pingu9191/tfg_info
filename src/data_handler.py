@@ -9,6 +9,8 @@ from datetime import timedelta
 from utils import LapType, TrackSection
 import utils
 from collections import deque
+from scipy.optimize import minimize_scalar
+from sklearn.preprocessing import StandardScaler, PowerTransformer, MinMaxScaler, RobustScaler
 
 def read_data_from_file_mat(data: np.ndarray, column_name: str) -> np.ndarray:
     """
@@ -18,7 +20,7 @@ def read_data_from_file_mat(data: np.ndarray, column_name: str) -> np.ndarray:
     throttle_data = data.get(column_name)
     return throttle_data[0][0][1][0]
 
-def read_csv(file: str) -> np.ndarray:
+def read_csv(file: str, delimiter=",") -> np.ndarray:
     """
     Open csv and create numpy array
 
@@ -28,7 +30,7 @@ def read_csv(file: str) -> np.ndarray:
     Returns:
         data (np.ndarray): numpy array with the data
     """
-    data = pd.read_csv(file, delimiter=",", dtype={"SessionState": str})
+    data = pd.read_csv(file, delimiter=delimiter, dtype={"SessionState": str})
 
     # Convert the DataFrame to numpy array
     data = data.to_numpy()
@@ -282,7 +284,7 @@ def get_section_time(data: np.ndarray) -> int:
     lap_time = read_channel_from_data(data, "SessionTime")
     
     # Convertir el tiempo de vuelta a microsegundos
-    lap_time = lap_time[-1] - lap_time[0]
+    lap_time = lap_time[-1]*1000000 - lap_time[0]*1000000
     
     return lap_time
 
@@ -345,6 +347,99 @@ def number_laps_stint_csv(data: np.ndarray) -> int:
     
     num_laps = np.max(laps) - np.min(laps) + 1
     return int(num_laps)
+
+def normalize_data(data: np.ndarray) -> tuple[float, float, float, np.ndarray]:
+    """
+    Normaliza los datos a un rango de 0 a 1.
+    Usando Z-score
+    
+    Args:
+        data (np.ndarray): array de datos a normalizar
+        min (float): valor mínimo del rango
+        max (float): valor máximo del rango
+    
+    Returns:
+        np.ndarray: array normalizado, de la misma forma que data
+    """
+    X = data
+    X = np.array(X).flatten()  # Asegurar que es un array 1D
+    
+    # Paso 1: Normalización Min-Max a [0, 1]
+    X_min = np.min(X)
+    X_max = np.max(X)
+    X_norm = (X - X_min) / (X_max - X_min)
+    
+    return X_min, X_max, 1.0, X_norm
+    
+    # Paso 2: Encontrar 'k' tal que la media sea 0.5
+    def mean_error(k):
+        transformed = X_norm ** k
+        return np.abs(np.mean(transformed) - 0.5)
+    
+    # Optimizar 'k' en el rango (0.1, 10) para evitar overflows
+    res = minimize_scalar(mean_error, bounds=(0.1, 10), method='bounded')
+    k_opt = res.x
+    
+    # Aplicar la transformación óptima
+    X_final = X_norm ** k_opt
+    
+    return X_min, X_max, k_opt, X_final
+
+def desnormalize_data(data: np.ndarray, min, max, k):
+    """
+    Desnormaliza los datos a su rango original.
+    
+    Args:
+        data (np.ndarray): array de datos normalizados
+        min (float): valor mínimo del rango original
+        max (float): valor máximo del rango original
+    
+    Returns:
+        np.ndarray: array desnormalizado, de la misma forma que data
+    """
+    return data * (max - min) + min
+    
+    X_denorm_power = data ** (1 / k)
+    
+    # Paso 2: Invertir Min-Max
+    X_denorm = X_denorm_power * (max - min) + min
+    
+    return X_denorm
+
+def normalize_channel(data: np.ndarray) -> np.ndarray:
+    """
+    Normaliza todos los canales de data a un rango de -1 a 1.
+    
+    Args:
+        data (np.ndarray): array de forma (n_channels, n_samples)
+    
+    Returns:
+        np.ndarray: array normalizado, de forma (n_channels, n_samples)
+    """
+    if len(data) != len(utils.model_channels):
+        return data
+    
+    # Normalizar cada canal por su máximo y mínimo
+    normalized_data = np.zeros_like(data, dtype=np.float32)
+    
+    for i, channel_name in enumerate(utils.model_channels):
+        channel_data = data[i]
+        
+        # Evitar división por cero
+        min_val = utils.model_channels_limits[channel_name][0]
+        max_val = utils.model_channels_limits[channel_name][1]
+        if max_val - min_val == 0:
+            normalized_data[i] = 0.0
+            continue
+        
+        # Clip
+        x_clipped = np.clip(channel_data, min_val, max_val)
+        
+        # Normalizar al rango
+        normalized_data[i] = (x_clipped - min_val) / (max_val - min_val)
+        
+    
+    return normalized_data
 
 def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
     """
@@ -488,3 +583,18 @@ def complete_data_missing_values(data: np.ndarray, lapDist: np.ndarray, start: i
         value += jump
             
     return data, lapDist
+
+def borrar_esta_funcion(data: np.ndarray) -> np.ndarray:
+    """
+    Deprecated function, not used anymore.
+    """
+    # Borrar esta función
+    
+    new_data = []
+    for channel in utils.model_channels:
+        if channel in utils.new_model_channels:
+            new_data.append(data[utils.model_channels.index(channel)])
+    
+    new_data = np.array(new_data)
+    
+    return new_data

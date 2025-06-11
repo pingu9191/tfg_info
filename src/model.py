@@ -1,12 +1,18 @@
 import tensorflow as tf
 import numpy as np
-from tensorflow.keras.layers import Input, Conv1D, GRU, Dense, Dropout, Concatenate
-from tensorflow.keras.models import Model
+import os
+import matplotlib.pyplot as plt
+from tensorflow.keras.layers import Input, Conv1D, GRU, Dense, Dropout, Concatenate, BatchNormalization, Lambda, LSTM, BatchNormalization, ReLU, LSTM, Dense, GlobalAveragePooling1D, Dropout
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import MultiHeadAttention, Add, GlobalAveragePooling1D, SimpleRNN
+from tensorflow.keras.layers import Input, Dense, LayerNormalization, Dropout, RNN
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.losses import Huber
 
 
 class MyModel():
     
-    def __init__(self, channels, steps):
+    def __init__(self, channels, steps, model=None):
         """
         Constructor de la clase Model.
         
@@ -17,8 +23,10 @@ class MyModel():
         
         self.channels = channels
         self.steps = steps
-        
-        self.model = self.build_model()
+        if model is None:
+            self.model = self.build_model()
+        else:
+            self.model = self.load_model(model)
 
     def build_model(self):
         """
@@ -27,34 +35,43 @@ class MyModel():
         - X: Datos de entrada.
         - y: Datos de salida.
         """
-        series_input = Input(shape=(self.channels, self.steps), name="series_input")
-        scalar_input = Input(shape=(1,), name="scalar_input")
-        
-        # Capa de convolución
-        x = Conv1D(filters=64, kernel_size=5, activation='relu', padding='same')(series_input)
-        x = Conv1D(filters=64, kernel_size=5, activation='relu', padding='same')(x)
-        x = Dropout(0.3)(x)
-        
-        # Capa GRU
-        x = GRU(64, return_sequences=True)(x)
-        x = GRU(64, return_sequences=False)(x)
-        
-        # Concatenación de la entrada escalar
-        merged = Concatenate()([x, scalar_input])
-        x = Dense(64, activation='relu')(merged)
-        x = Dropout(0.3)(x)
-        
-        # Capa de salida
-        output = Dense(1, activation='linear', name="output")(x)
-        
-        # Construcción del modelo
-        model = Model(inputs=[series_input, scalar_input], outputs=output)
-        model.compile(optimizer='adam', loss=tf.keras.losses.MeanSquaredError(), metrics=['mae'])
-        
+
+        # Multi-head self-attention
+        input_layer = Input(shape=(self.steps, self.channels))
+
+        # Encoder stack (1 o 2 bloques según datos)
+        x = self.transformer_encoder(input_layer, head_size=64, num_heads=32, ff_dim=1024, dropout=0)
+        x = self.transformer_encoder(x, head_size=64, num_heads=32, ff_dim=1024, dropout=0)
+
+        # Resumen global de la secuencia
+        x = GlobalAveragePooling1D()(x)
+
+        # Dense layers para regresión
+        x = Dense(1024, activation='sigmoid')(x)
+        #x = Dropout(0.1)(x)
+        #x = Dropout(0.1)(x)
+        output = Dense(1, activation='linear')(x)  # Salida para regresión
+
+        model = Model(inputs=input_layer, outputs=output)
+        model.compile(optimizer='adam', loss=Huber(), metrics=['mae'])
         return model
 
+    def transformer_encoder(self, inputs, head_size, num_heads, ff_dim, dropout=0.1):
+        # Multi-head self-attention
+        x = LayerNormalization(epsilon=1e-6)(inputs)
+        x = MultiHeadAttention(key_dim=head_size, num_heads=num_heads, dropout=dropout)(x, x)
+        x = Add()([x, inputs])
 
-    def train_model(self, series_batch, scalar_batch, label_batch):
+        # Feed-forward
+        x_skip = x
+        x = LayerNormalization(epsilon=1e-6)(x)
+        x = Dense(ff_dim, activation="relu")(x)
+        x = Dropout(dropout)(x)
+        x = Dense(inputs.shape[-1])(x)
+        x = Add()([x, x_skip])
+        return x
+        
+    def train_model(self, series_batch, scalar_batch, label_batch, batch=32, epochs=40, training=0.2):
         """
         Método para entrenar el modelo.
         
@@ -63,24 +80,11 @@ class MyModel():
         - label_batch: Lote de datos de salida.
         """
         # Validación de los datos de entrada y salida
+        series_batch = np.transpose(series_batch, (0, 2, 1))  # Change from (batch, channels, steps) to (batch, steps, channels)
         
-
         # Entrenamiento
-        self.model.train_on_batch([series_batch, scalar_batch], label_batch)
-
-
-    def evaluate_model(self, X_test, y_test):
-        """
-        Método para evaluar el modelo.
-        
-        - X_test: Datos de entrada de prueba.
-        - y_test: Datos de salida de prueba.
-        """
-        if self.model == None:
-            raise Exception("El modelo no ha sido construido.")
-        
-        loss, mae = self.model.evaluate(X_test, y_test)
-        print(f"Loss: {loss}, MAE: {mae}")
+        self.model.fit(x=series_batch, y=label_batch, 
+                       batch_size = batch, epochs=epochs, validation_split=training, shuffle=True)
         
     def predict(self, X):
         """
@@ -91,10 +95,28 @@ class MyModel():
         if self.model == None:
             raise Exception("El modelo no ha sido construido.")
         
+        X = np.transpose(X, (0, 2, 1))
+        
         predictions = self.model.predict(X)
         return predictions
     
-    def load_model(model_path):
+    def evaluate_model(self, X_test, y_test):
+        """
+        Método para evaluar el modelo.
+        
+        - X_test: Datos de entrada de prueba.
+        - y_test: Datos de salida de prueba.
+        """
+        if self.model == None:
+            raise Exception("El modelo no ha sido construido.")
+        
+        X_test = np.transpose(X_test, (0, 2, 1))  # Change from (batch, channels, steps) to (batch, steps, channels)
+
+        
+        loss, mae = self.model.evaluate(X_test, y_test)
+        print(f"Loss: {loss}, MAE: {mae}")
+    
+    def load_model(self, model_path):
         """
         Método para cargar un modelo guardado.
         

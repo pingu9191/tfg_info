@@ -10,7 +10,7 @@ import math
 from time import sleep
 from utils import Track, LapType
 
-file_path = "data/01JWDP45P8RZ2Q3W0AKKD0VC8K.csv"
+file_path = "data/01JWD9Q8GEZCT4Q1EPFZGKR1TK.csv"
 track_path = "tracks/tsukuba.json"
 output_path = "out/"
 JUMP = 500
@@ -22,7 +22,8 @@ def main():
     data = read_csv(file_path)
     with open(track_path) as json_file:
         track_data = json.load(json_file)
-        track = Track(track_data["track"], track_data["length"], track_data["sections"])
+        track = Track(track_data["track"], track_data["length"], 
+                      track_data["label_max"], track_data["sections"])
 
     plt.figure(figsize=(10, 5))
     section = 0
@@ -56,7 +57,7 @@ def main():
                     continue
                 print(f"{section.name}: {get_section_time(data_section)} seconds. Size: {len(data_section1[0])}")
                 time += get_section_time(data_section)
-                if section.name == "2":
+                if section.name == "10":
                     plt.plot(read_channel_from_data(data_section, "LapDistPct"),
                              read_channel_from_data(data_section, "ThrottleRaw"), label="Lap "+str(i))
                     

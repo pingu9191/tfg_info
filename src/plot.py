@@ -10,7 +10,7 @@ import math
 from time import sleep
 from utils import Track, LapType
 
-file_path = "data/01JWDM9SPCXE6PJ90A29S09XX7.csv"
+file_path = "data/01JWDMAM14G8AT77Y5TW1GCPHE.csv"
 track_path = "tracks/tsukuba.json"
 output_path = "out/"
 JUMP = 500
@@ -25,7 +25,7 @@ def main():
         track = Track(track_data["track"], track_data["length"], track_data["sections"])
 
     plt.figure(figsize=(10, 5))
-    section = 0
+    section = 3
     section = track.sections[section]
 
     print("Stint laps: ", number_laps_stint_csv(data))
@@ -42,18 +42,24 @@ def main():
                 print("Skipping lap due to type: ", t)
                 continue
             
-            lap = normalize_data_by_lapDistPct(lap, JUMP)
+            lap1 = normalize_data_by_lapDistPct(lap, JUMP)
+            
+            lap = filter_data_by_section(lap, section)
+            lap1 = filter_data_by_section(lap1, section)
+            
             print("Size ", len(lap[0]))
             if t == LapType.VALID_LAP or t == LapType.INCIDENT_LAP:
                 plt.plot(read_channel_from_data(lap, "LapDistPct"),
-                         read_channel_from_data(lap, "ThrottleRaw"), label="Lap "+str(i))
-
-    plt.title("Throttle Section "+section.name)
-    plt.xlabel("Throttle")
-    plt.ylabel("Distance")
-    plt.legend()
-    plt.grid()
-    plt.savefig(output_path+"matplot/output_plot.png")
+                         read_channel_from_data(lap, "SteeringWheelAngle"), label="Lap "+str(i))
+                plt.plot(read_channel_from_data(lap1, "LapDistPct"),
+                         read_channel_from_data(lap1, "SteeringWheelAngle"), label="Lap "+str(i))
+                plt.title("Throttle Section "+section.name)
+                plt.xlabel("Throttle")
+                plt.ylabel("Distance")
+                plt.legend()
+                plt.grid()
+                plt.savefig(output_path+"matplot/output_plot.png")
+                exit(0)
 
     print("Fin del programa")
 
