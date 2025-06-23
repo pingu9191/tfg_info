@@ -11,6 +11,7 @@ import utils
 from collections import deque
 from scipy.optimize import minimize_scalar
 from sklearn.preprocessing import StandardScaler, PowerTransformer, MinMaxScaler, RobustScaler
+from sklearn.model_selection import train_test_split
 
 def read_data_from_file_mat(data: np.ndarray, column_name: str) -> np.ndarray:
     """
@@ -66,6 +67,10 @@ def read_channel_from_data(data: np.ndarray, channel: str) -> np.ndarray:
         return data[utils.raw_channels.index(channel)]
     if len(data) == len(utils.model_channels):
         return data[utils.model_channels.index(channel)]
+    if len(data) == len(utils.new_model_channels):
+        return data[utils.new_model_channels.index(channel)]
+    if len(data) == len(utils.model_channels_nobb):
+        return data[utils.model_channels_nobb.index(channel)]
     
     return None
 
@@ -364,6 +369,10 @@ def normalize_data(data: np.ndarray) -> tuple[float, float, float, np.ndarray]:
     X = data
     X = np.array(X).flatten()  # Asegurar que es un array 1D
     
+    # Evitar división por cero
+    if np.max(X) - np.min(X) == 0:
+        return np.min(X), np.max(X), 1.0, data
+    
     # Paso 1: Normalización Min-Max a [0, 1]
     X_min = np.min(X)
     X_max = np.max(X)
@@ -440,6 +449,33 @@ def normalize_channel(data: np.ndarray) -> np.ndarray:
         
     
     return normalized_data
+
+def desnormalize_channel(data: np.ndarray) -> np.ndarray:
+    """
+    Desnormaliza todos los canales de data a su rango original.
+    
+    Args:
+        data (np.ndarray): array de forma (n_channels, n_samples)
+    
+    Returns:
+        np.ndarray: array desnormalizado, de forma (n_channels, n_samples)
+    """
+    if len(data) != len(utils.model_channels):
+        return data
+    
+    # Desnormalizar cada canal por su máximo y mínimo
+    desnormalized_data = np.zeros_like(data, dtype=np.float32)
+    
+    for i, channel_name in enumerate(utils.model_channels):
+        channel_data = data[i]
+        
+        min_val = utils.model_channels_limits[channel_name][0]
+        max_val = utils.model_channels_limits[channel_name][1]
+        
+        # Desnormalizar al rango original
+        desnormalized_data[i] = channel_data * (max_val - min_val) + min_val
+        
+    return desnormalized_data
 
 def normalize_data_by_lapDistPct(data: np.ndarray, jump: int) -> np.ndarray:
     """
@@ -594,7 +630,74 @@ def borrar_esta_funcion(data: np.ndarray) -> np.ndarray:
     for channel in utils.model_channels:
         if channel in utils.new_model_channels:
             new_data.append(data[utils.model_channels.index(channel)])
+            new_data.append(derivate_channel(data[utils.model_channels.index(channel)]))
     
     new_data = np.array(new_data)
     
     return new_data
+
+def derivate_channel(channel: np.ndarray) -> np.ndarray:
+    """
+    Derivate the channel data to get the speed of change.
+    
+    Args:
+        channel (np.ndarray): numpy array with the channel data
+    
+    Returns:
+        np.ndarray: numpy array with the derivate of the channel
+    """
+    if len(channel) < 2:
+        return channel  # No derivation possible
+    
+    # Calculate the derivative using finite differences
+    derivative = np.zeros_like(channel)
+    derivative[1:] = np.diff(channel) / np.diff(np.arange(len(channel)))
+    
+    return derivative
+
+def read_telemetry_file(file: str, l_perc, t_perc, t_size, mask=None) -> tuple[np.ndarray, np.ndarray, np.ndarray,
+                                            np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    data = np.load(file)
+        
+    # Normalize X_scalar and y (series is already normalized)
+    if mask is None:
+        y = data['y']
+        Q1 = np.percentile(y, l_perc, axis=0)
+        Q3 = np.percentile(y, t_perc, axis=0)
+        IQR = Q3 - Q1
+        mask = ~((y < (Q1 - 1.5 * IQR)) | (y > (Q3 + 1.5 * IQR)))
+    
+    X_scalar = data['X_scalar']
+    X_scalar = X_scalar[mask]  # Apply the same mask to X_scalar
+    if X_scalar[0] != 0:
+        X_scalar += np.random.uniform(-8333, 8334, size=X_scalar.shape)  # Add noise to X_scalar
+    min, max, k_v, X_scalar = normalize_data(X_scalar)
+    minmax_scalar = [min, max, k_v]
+    
+    y = data['y']
+    y = y[mask]  # Apply the same mask to y
+    y += np.random.uniform(-8333, 8334, size=y.shape) # Add noise to y
+    min, max, k_v, y = normalize_data(y)
+    minmax_label = [min, max, k_v]
+    
+    X_series = data['X_series']
+    X_series = X_series[mask]  # Apply the same mask to X_series
+    
+    # Eliminar canal 'dcBrakeBias'
+    """if 'dcBrakeBias' in utils.model_channels:
+        index = utils.model_channels.index('dcBrakeBias')
+        X_series = np.delete(X_series, index, axis=1)"""
+    
+    new_x_series = []
+    for i in range(len(X_series)):
+        new_x_series.append(borrar_esta_funcion(X_series[i]))
+        
+    new_x_series = np.array(new_x_series)
+    # X_series = new_x_series # Comentar si se quiere
+    
+    X_series_train, X_series_test, X_scalar_train, X_scalar_test, y_train, y_test = train_test_split(
+            X_series, X_scalar, y, test_size=t_size, random_state=42
+    )
+    
+    return X_series_train, X_series_test, X_scalar_train, X_scalar_test, y_train, y_test, minmax_label, minmax_scalar, mask
+  

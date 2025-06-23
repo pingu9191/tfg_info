@@ -2,12 +2,15 @@ import tensorflow as tf
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from data_handler import read_telemetry_file, desnormalize_channel, derivate_channel
+from sklearn.ensemble import RandomForestRegressor
 from tensorflow.keras.layers import Input, Conv1D, GRU, Dense, Dropout, Concatenate, BatchNormalization, Lambda, LSTM, BatchNormalization, ReLU, LSTM, Dense, GlobalAveragePooling1D, Dropout
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import MultiHeadAttention, Add, GlobalAveragePooling1D, SimpleRNN
-from tensorflow.keras.layers import Input, Dense, LayerNormalization, Dropout, RNN
+from tensorflow.keras.layers import Input, Dense, LayerNormalization, Dropout, RNN, Bidirectional
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Huber
+from tensorflow.keras import layers, models
 
 
 class MyModel():
@@ -23,12 +26,69 @@ class MyModel():
         
         self.channels = channels
         self.steps = steps
+        
         if model is None:
-            self.model = self.build_model()
+            self.model = self.build_model_ii()
         else:
             self.model = self.load_model(model)
 
-    def build_model(self):
+    """def build_model(self):
+        
+        #Método para construir y compilar el modelo.
+        
+
+        # Entrada
+        input_layer = Input(shape=(self.steps, self.channels))
+
+        # Bidirectional LSTM
+        x = LSTM(64, return_sequences=False)(input_layer)
+        #x = Bidirectional(LSTM(32, return_sequences=False))(x)
+        #x = Dropout(0.3)(x)
+        x = Dense(64, activation='relu')(x)
+        output = Dense(1)(x)  # Salida de regresión
+
+        # Construcción del modelo
+        model = Model(inputs=input_layer, outputs=output)
+        model.compile(optimizer=Adam(learning_rate=0.001), loss=['mse'], metrics=['mae'])
+
+        return model"""
+    def build_model_i(self):
+        # Input 1: Telemetría secuencial (shape: steps x channels)
+        sequence_input = Input(shape=(self.steps, self.channels), name='telemetry_input')
+
+        # Input 2: Scalar (tiempo acumulado hasta ese tramo)
+        scalar_input = Input(shape=(1,), name='offset_input')
+
+        # Extracción de características con convoluciones
+        x = Conv1D(filters=32, kernel_size=3, activation='relu')(sequence_input)
+        x = BatchNormalization()(x)
+        x = Conv1D(filters=64, kernel_size=3, activation='relu')(x)
+        x = BatchNormalization()(x)
+
+        # Modelado temporal con GRU
+        x = GRU(100, return_sequences=True)(x)  # shape: (batch_size, 64)
+        x = GRU(100, return_sequences=False)(x)  # shape: (batch_size, 64)
+        x = Dropout(0.2)(x)
+
+        # Fusionamos la representación de la secuencia con el scalar
+        x = Concatenate()([x, scalar_input])  # shape: (batch_size, 101)
+
+        # Capa densa que resume el tramo
+        x = Dense(64, activation='relu')(x)  # shape: (batch_size, 128)
+        x = Dropout(0.2)(x)
+
+        # Capa final para predecir el tiempo de vuelta restante
+        output = Dense(1, activation='relu')(x)
+
+        # Definición del modelo con dos entradas
+        model = Model(inputs=[sequence_input, scalar_input], outputs=output)
+
+        # Compilación
+        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+
+        return model
+    
+    def build_model_ii(self):
         """
         Método para construir y compilar el modelo.
         
@@ -36,41 +96,28 @@ class MyModel():
         - y: Datos de salida.
         """
 
-        # Multi-head self-attention
+        # Entrada
         input_layer = Input(shape=(self.steps, self.channels))
+        scalar_input = Input(shape=(1,), name='offset_input')
 
-        # Encoder stack (1 o 2 bloques según datos)
-        x = self.transformer_encoder(input_layer, head_size=64, num_heads=32, ff_dim=1024, dropout=0)
-        x = self.transformer_encoder(x, head_size=64, num_heads=32, ff_dim=1024, dropout=0)
+        # Bidirectional LSTM
+        x = Bidirectional(LSTM(64, return_sequences=True))(input_layer)
+        x = Bidirectional(LSTM(128, return_sequences=False))(x)
+        x = Dropout(0.2)(x)
+        
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        
+        x = Concatenate()([x, scalar_input])  # shape: (batch_size, 101)
+        
+        output = Dense(1, activation='relu')(x)  # Salida de regresión
 
-        # Resumen global de la secuencia
-        x = GlobalAveragePooling1D()(x)
+        # Construcción del modelo
+        model = Model(inputs=[input_layer, scalar_input], outputs=output)
+        model.compile(optimizer=Adam(learning_rate=0.001), loss=Huber(), metrics=['mae'])
 
-        # Dense layers para regresión
-        x = Dense(1024, activation='sigmoid')(x)
-        #x = Dropout(0.1)(x)
-        #x = Dropout(0.1)(x)
-        output = Dense(1, activation='linear')(x)  # Salida para regresión
-
-        model = Model(inputs=input_layer, outputs=output)
-        model.compile(optimizer='adam', loss=Huber(), metrics=['mae'])
         return model
 
-    def transformer_encoder(self, inputs, head_size, num_heads, ff_dim, dropout=0.1):
-        # Multi-head self-attention
-        x = LayerNormalization(epsilon=1e-6)(inputs)
-        x = MultiHeadAttention(key_dim=head_size, num_heads=num_heads, dropout=dropout)(x, x)
-        x = Add()([x, inputs])
-
-        # Feed-forward
-        x_skip = x
-        x = LayerNormalization(epsilon=1e-6)(x)
-        x = Dense(ff_dim, activation="relu")(x)
-        x = Dropout(dropout)(x)
-        x = Dense(inputs.shape[-1])(x)
-        x = Add()([x, x_skip])
-        return x
-        
     def train_model(self, series_batch, scalar_batch, label_batch, batch=32, epochs=40, training=0.2):
         """
         Método para entrenar el modelo.
@@ -83,10 +130,10 @@ class MyModel():
         series_batch = np.transpose(series_batch, (0, 2, 1))  # Change from (batch, channels, steps) to (batch, steps, channels)
         
         # Entrenamiento
-        self.model.fit(x=series_batch, y=label_batch, 
+        self.model.fit(x=[series_batch, scalar_batch], y=label_batch, 
                        batch_size = batch, epochs=epochs, validation_split=training, shuffle=True)
         
-    def predict(self, X):
+    def predict(self, X_series, X_scalar):
         """
         Método para hacer predicciones con el modelo.
         
@@ -95,9 +142,9 @@ class MyModel():
         if self.model == None:
             raise Exception("El modelo no ha sido construido.")
         
-        X = np.transpose(X, (0, 2, 1))
+        X_series = np.transpose(X_series, (0, 2, 1))
         
-        predictions = self.model.predict(X)
+        predictions = self.model.predict([X_series, X_scalar])
         return predictions
     
     def evaluate_model(self, X_test, y_test):
@@ -123,4 +170,3 @@ class MyModel():
         - model_path: Ruta al archivo del modelo guardado.
         """
         return tf.keras.models.load_model(model_path)
-    

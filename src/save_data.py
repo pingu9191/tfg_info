@@ -167,6 +167,7 @@ def main():
         # Remove file
         os.remove(file_path)
         file = downloader(file_line)
+        print(f"File {file_line}/500")
     
     # Save models
     i = 0

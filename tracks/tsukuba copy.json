@@ -55,3 +55,56 @@
         }
     ]
 }
+
+{
+    "track": "Tsukuba",
+    "length": 2093,
+    "label_max": 56.917,
+    "sections": [
+        {
+            "sector": 1,
+            "start": 0,
+            "end": 393
+        },
+        {
+            "sector": 2,
+            "start": 393,
+            "end": 524
+        },
+        {
+            "sector": 3,
+            "start": 524,
+            "end": 701
+        },
+        {
+            "sector": 4,
+            "start": 701,
+            "end": 760
+        },
+        {
+            "sector": 5,
+            "start": 760,
+            "end": 930
+        },
+        {
+            "sector": 6,
+            "start": 930,
+            "end": 1105
+        },
+        {
+            "sector": 7,
+            "start": 1105,
+            "end": 1354
+        },
+        {
+            "sector": 8,
+            "start": 1354,
+            "end": 1670
+        },
+        {
+            "sector": 9,
+            "start": 1670,
+            "end": 2093
+        }
+    ]
+}
