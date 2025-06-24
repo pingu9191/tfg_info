@@ -19,7 +19,7 @@ track_path = "tracks/tsukuba.json"
 output_path = "out/"
 JUMP = 500
 BATCH_SIZE = 16
-EPOCHS = 3
+EPOCHS = 500
 
 def main():
     
@@ -59,8 +59,8 @@ def main():
         k += 1
     
     print("Datos cargados y modelos preparados.")
-    for i in [5]:
-    #for i in range(len(track.sections)):
+    #for i in [2]:
+    for i in range(1,len(track.sections)):
         model = MyModel(len(batchs_series[i][0]), len(batchs_series[i][0][0]))
         print(f"Entrenando modelo para la sección {track.sections[i].name}...")
         model.train_model(batchs_series[i], batchs_scalar[i], batchs_label[i], batch=BATCH_SIZE, epochs=EPOCHS)

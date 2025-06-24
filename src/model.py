@@ -8,6 +8,7 @@ from tensorflow.keras.layers import Input, Conv1D, GRU, Dense, Dropout, Concaten
 from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.layers import MultiHeadAttention, Add, GlobalAveragePooling1D, SimpleRNN
 from tensorflow.keras.layers import Input, Dense, LayerNormalization, Dropout, RNN, Bidirectional
+from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import Huber
 from tensorflow.keras import layers, models
@@ -60,9 +61,9 @@ class MyModel():
         scalar_input = Input(shape=(1,), name='offset_input')
 
         # Extracción de características con convoluciones
-        x = Conv1D(filters=32, kernel_size=3, activation='relu')(sequence_input)
+        x = Conv1D(filters=32, kernel_size=3, activation='sigmoid')(sequence_input)
         x = BatchNormalization()(x)
-        x = Conv1D(filters=64, kernel_size=3, activation='relu')(x)
+        x = Conv1D(filters=64, kernel_size=3, activation='sigmoid')(x)
         x = BatchNormalization()(x)
 
         # Modelado temporal con GRU
@@ -74,11 +75,11 @@ class MyModel():
         x = Concatenate()([x, scalar_input])  # shape: (batch_size, 101)
 
         # Capa densa que resume el tramo
-        x = Dense(64, activation='relu')(x)  # shape: (batch_size, 128)
+        x = Dense(64, activation='sigmoid')(x)  # shape: (batch_size, 128)
         x = Dropout(0.2)(x)
 
         # Capa final para predecir el tiempo de vuelta restante
-        output = Dense(1, activation='relu')(x)
+        output = Dense(1, activation='sigmoid')(x)
 
         # Definición del modelo con dos entradas
         model = Model(inputs=[sequence_input, scalar_input], outputs=output)
@@ -102,15 +103,16 @@ class MyModel():
 
         # Bidirectional LSTM
         x = Bidirectional(LSTM(64, return_sequences=True))(input_layer)
+        #x = Bidirectional(LSTM(128, return_sequences=True))(x)
         x = Bidirectional(LSTM(128, return_sequences=False))(x)
         x = Dropout(0.2)(x)
         
-        x = Dense(64, activation='relu')(x)
+        x = Dense(64, activation='sigmoid')(x)
         x = Dropout(0.2)(x)
         
         x = Concatenate()([x, scalar_input])  # shape: (batch_size, 101)
         
-        output = Dense(1, activation='relu')(x)  # Salida de regresión
+        output = Dense(1, activation='sigmoid')(x)  # Salida de regresión
 
         # Construcción del modelo
         model = Model(inputs=[input_layer, scalar_input], outputs=output)
@@ -129,9 +131,17 @@ class MyModel():
         # Validación de los datos de entrada y salida
         series_batch = np.transpose(series_batch, (0, 2, 1))  # Change from (batch, channels, steps) to (batch, steps, channels)
         
+        early_stop = EarlyStopping(
+            monitor='val_loss',          # O puedes usar 'val_mae' si prefieres
+            patience=30,                 # Nº de épocas sin mejora antes de parar
+            restore_best_weights=True,  # Recupera los mejores pesos antes del sobreajuste
+            verbose=1
+        )
+        
         # Entrenamiento
         self.model.fit(x=[series_batch, scalar_batch], y=label_batch, 
-                       batch_size = batch, epochs=epochs, validation_split=training, shuffle=True)
+                       batch_size = batch, epochs=epochs, validation_split=training, shuffle=True, 
+                       callbacks=[early_stop], verbose=1)
         
     def predict(self, X_series, X_scalar):
         """
